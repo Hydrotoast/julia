@@ -10,7 +10,7 @@ Base.indices(::AbstractArray, ::Any)
 Base.length(::AbstractArray)
 Base.eachindex
 Base.linearindices
-Base.linearindexing
+Base.IndexMethod
 Base.countnz
 Base.conj!
 Base.stride
