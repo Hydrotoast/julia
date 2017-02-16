@@ -40,7 +40,8 @@ and `x` is the `i`th value from the given iterator. It's useful when
 you need not only the values `x` over which you are iterating, but
 also the number of iterations so far. Note that `i` may not be valid
 for indexing `iter`; it's also possible that `x != iter[i]`, if `iter`
-has indices that do not start at 1.
+has indices that do not start at 1. See the `enumerate(IndexLinear(),
+iter)` method if you want to ensure that `i` is an index.
 
 ```jldoctest
 julia> a = ["a", "b", "c"];
@@ -68,6 +69,77 @@ eltype{I}(::Type{Enumerate{I}}) = Tuple{Int, eltype(I)}
 
 iteratorsize{I}(::Type{Enumerate{I}}) = iteratorsize(I)
 iteratoreltype{I}(::Type{Enumerate{I}}) = iteratoreltype(I)
+
+struct IndexValue{I,A<:AbstractArray}
+    data::A
+    itr::I
+end
+
+"""
+    enumerate(IndexLinear(), A)
+    enumerate(IndexCartesian(), A)
+    enumerate(IndexMethod(A), A)
+
+An iterator that accesses each element of the array `A`, returning
+`(i, x)`, where `i` is the index for the element and `x = A[i]`.  This
+is similar to `enumerate(A)`, except `i` will always be a valid index
+for `A`.  Like `enumerate`, the bounds-check that would otherwise
+occur for `A[i]` is omitted.
+
+Specifying specifying `IndexLinear()` ensures that `i` will be an
+integer; specifying `IndexCartesian()` ensures that `i` will be a
+`CartesianIndex`; specifying `IndexMethod(A)` chooses whichever has
+been defined as the native indexing method for array `A`.
+
+```jldoctest
+julia> A = ["a" "d"; "b" "e"; "c" "f"];
+
+julia> for (index, value) in enumerate(IndexMethod(A), A)
+           println("\$index \$value")
+       end
+1 a
+2 b
+3 c
+4 d
+5 e
+6 f
+
+julia> S = view(A, 1:2, :);
+
+julia> for (index, value) in enumerate(IndexMethod(S), S)
+           println("\$index \$value")
+       end
+CartesianIndex{2}((1, 1)) a
+CartesianIndex{2}((2, 1)) b
+CartesianIndex{2}((1, 2)) d
+CartesianIndex{2}((2, 2)) e
+```
+
+Note that for a vector `v`, `enumerate(v)` returns `i` as a *counter*
+(always starting at 1), whereas `enumerate(IndexLinear(), v)` returns
+`i` as an *index* (starting at the first index of `v`, which may or
+may not be 1).
+
+See also: [`IndexMethod`](@ref), [`indices`](@ref).
+"""
+enumerate(::IndexLinear,    A::AbstractArray) = IndexValue(A, linearindices(A))
+enumerate(::IndexCartesian, A::AbstractArray) = IndexValue(A, CartesianRange(indices(A)))
+
+length(v::IndexValue)  = length(v.itr)
+indices(v::IndexValue) = indices(v.itr)
+size(v::IndexValue)    = size(v.itr)
+@inline start(v::IndexValue) = start(v.itr)
+@inline function next(v::IndexValue, state)
+    indx, n = next(v.itr, state)
+    @inbounds item = v.data[indx]
+    (indx, item), n
+end
+@inline done(v::IndexValue, state) = done(v.itr, state)
+
+eltype{I,A}(::Type{IndexValue{I,A}}) = Tuple{eltype(I), eltype(A)}
+
+iteratorsize{I}(::Type{IndexValue{I}}) = iteratorsize(I)
+iteratoreltype{I}(::Type{IndexValue{I}}) = iteratoreltype(I)
 
 # zip
 
